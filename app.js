@@ -5,7 +5,7 @@
  * Android's share menu; the laptop opens that file to view the catalogue.
  */
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 
 /* =========================================================================
  * Helpers
@@ -1027,8 +1027,13 @@ function openQuick(gallery = 'liked', draft) {
  * ========================================================================= */
 async function pasteLabelDlg() {
   const canRead = !!navigator.clipboard?.readText;
+  // There's no official web link for Lens; this asks the Google app to open it,
+  // and falls back to the Lens website if the phone doesn't understand it.
+  const lens = 'intent://lens/#Intent;scheme=googleapp;package=com.google.android.googlequicksearchbox;'
+    + 'S.browser_fallback_url=' + encodeURIComponent('https://lens.google.com/') + ';end';
   const res = await modal(`<h3>Paste label</h3>
-    <p class="hint">Point your camera at the label, tap <b>Google Lens</b> → select the text → <b>Copy</b>. Then paste it here.</p>
+    <p class="hint">In <b>Google Lens</b>, point at the label → select the text → <b>Copy</b>. Then come back here and paste it.</p>
+    ${isTouch() ? `<a class="btn wide" href="${lens}">${ICON.camera}Open Google Lens</a>` : ''}
     <textarea id="lbl" rows="7" placeholder="Paste the label text here"></textarea>
     <div class="btns">${canRead ? '<button class="btn" data-a="clip">Paste</button>' : ''}<span class="grow"></span>
       <button class="btn" data-v="">Cancel</button><button class="btn primary" data-a="use">Use</button></div>`,
