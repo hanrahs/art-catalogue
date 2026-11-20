@@ -5,7 +5,7 @@
  * Android's share menu; the laptop opens that file to view the catalogue.
  */
 
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 
 /* =========================================================================
  * Helpers
@@ -415,6 +415,7 @@ window.addEventListener('popstate', () => {
   if (!stack.length) document.body.classList.remove('layered');
   layer.onClose?.();
   layer.closed?.();
+  if (!stack.length && updateReady) setTimeout(() => location.reload(), 300);
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && stack.length) closeTop(); });
 function refreshLayers() { stack.forEach(l => l.refresh?.()); }
@@ -756,7 +757,7 @@ function openEditor({ id, gallery = 'mine', draft } = {}) {
     <div class="scroll"><div class="formwrap">
       <div class="seg"><button data-g="mine">My collection</button><button data-g="liked">Liked</button></div>
       <div class="ed-photos"></div>
-      <button type="button" class="btn wide subtle" data-a="paste">${ICON.paste}Paste label text</button>
+      <div class="addrow label-row">${lensBtn('subtle')}<button type="button" class="btn subtle" data-a="paste">${ICON.paste}Paste label text</button></div>
       <form class="fields" autocomplete="off" onsubmit="return false"></form>
       <div class="ed-docs"><h3>Certificates &amp; receipts</h3><p class="hint">Photos or PDFs — certificates of authenticity, receipts, valuations.</p><div class="docs"></div></div>
       ${isNew ? '' : '<button class="btn danger wide" data-a="delete">Delete this artwork</button>'}
@@ -899,9 +900,11 @@ function openQuick(gallery = 'liked', draft) {
     const ids = set().ids;
     $('.shot', el).innerHTML = ids.length
       ? `<div class="ph" data-a="view"><img data-photo="${ids[0]}" alt="">${ids.length > 1 ? `<span class="badge">${ids.length} photos</span>` : ''}</div>
-         <div class="btncol"><button class="btn" data-a="retake">${ICON.camera}Retake</button><button class="btn" data-a="more">${ICON.image}Add photo</button><button class="btn" data-a="paste">${ICON.paste}Paste label</button></div>`
+         <div class="btncol"><button class="btn" data-a="retake">${ICON.camera}Retake</button><button class="btn" data-a="more">${ICON.image}Add photo</button></div>
+         <div class="addrow full">${lensBtn()}<button class="btn" data-a="paste">${ICON.paste}Paste label</button></div>`
       : `<div class="btncol wide"><button class="btn primary big" data-a="camera">${ICON.camera}Take photo</button>
-         <div class="addrow"><button class="btn" data-a="gallery">${ICON.image}From gallery</button><button class="btn" data-a="paste">${ICON.paste}Paste label</button></div></div>`;
+         <div class="addrow"><button class="btn" data-a="gallery">${ICON.image}From gallery</button></div>
+         <div class="addrow">${lensBtn()}<button class="btn" data-a="paste">${ICON.paste}Paste label</button></div></div>`;
     hydrate($('.shot', el));
     const x = cur.extra || {};
     const bits = [x.year, x.medium, fmtSize(x)].filter(Boolean);
@@ -1025,15 +1028,18 @@ function openQuick(gallery = 'liked', draft) {
 /* =========================================================================
  * Gallery labels: paste text (e.g. copied with Google Lens) and split it into fields
  * ========================================================================= */
+// There's no official web link for Lens; this asks the Google app to open it,
+// and falls back to the Lens website if the phone doesn't understand it.
+const LENS_URL = 'intent://lens/#Intent;scheme=googleapp;package=com.google.android.googlequicksearchbox;'
+  + 'S.browser_fallback_url=' + encodeURIComponent('https://lens.google.com/') + ';end';
+const lensBtn = (cls = '') => /Android/i.test(navigator.userAgent) || isTouch()
+  ? `<a class="btn ${cls}" href="${LENS_URL}">${ICON.search}Open Lens</a>` : '';
+
 async function pasteLabelDlg() {
   const canRead = !!navigator.clipboard?.readText;
-  // There's no official web link for Lens; this asks the Google app to open it,
-  // and falls back to the Lens website if the phone doesn't understand it.
-  const lens = 'intent://lens/#Intent;scheme=googleapp;package=com.google.android.googlequicksearchbox;'
-    + 'S.browser_fallback_url=' + encodeURIComponent('https://lens.google.com/') + ';end';
   const res = await modal(`<h3>Paste label</h3>
     <p class="hint">In <b>Google Lens</b>, point at the label → select the text → <b>Copy</b>. Then come back here and paste it.</p>
-    ${isTouch() ? `<a class="btn wide" href="${lens}">${ICON.camera}Open Google Lens</a>` : ''}
+    ${lensBtn('wide')}
     <textarea id="lbl" rows="7" placeholder="Paste the label text here"></textarea>
     <div class="btns">${canRead ? '<button class="btn" data-a="clip">Paste</button>' : ''}<span class="grow"></span>
       <button class="btn" data-v="">Cancel</button><button class="btn primary" data-a="use">Use</button></div>`,
@@ -1561,6 +1567,17 @@ async function init() {
   const d = LS.json('draft'), q = LS.json('qcDraft');
   if (d && settings.canEdit) { openEditor({ draft: d }); toast('Recovered what you were entering'); }
   else if (q && settings.canEdit) { openQuick(q.gallery, q); toast('Recovered what you were entering'); }
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    // When a new version has been downloaded, switch to it straight away —
+    // or, if something is open (e.g. half-entered artwork), as soon as it's closed.
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController) return;
+      if (stack.length) updateReady = true; else location.reload();
+    });
+    const reg = await navigator.serviceWorker.register('sw.js');
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+  }
 }
+let updateReady = false;
 init();

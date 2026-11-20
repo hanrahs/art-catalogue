@@ -1,6 +1,6 @@
 // Offline support: keeps a copy of the app itself on the phone.
 // Bump VERSION whenever app files change so phones pick up the update.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = 'art-catalogue-' + VERSION;
 const ASSETS = [
   './',
@@ -13,7 +13,8 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache: 'reload' makes sure the new version's files come from the server, not the browser's cache.
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
