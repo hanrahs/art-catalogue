@@ -1,6 +1,6 @@
 // Offline support: keeps a copy of the app itself on the phone.
 // Bump VERSION whenever app files change so phones pick up the update.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = 'art-catalogue-' + VERSION;
 const ASSETS = [
   './',
